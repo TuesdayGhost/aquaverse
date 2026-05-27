@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { savePhoto, getPhoto, deletePhoto } from "../storage.js";
+import { useState, useRef } from "react";
+import { savePhoto, deletePhoto, getPhotoUrl } from "../storage.js";
 import { colors } from "../styles/theme.js";
 import { Icons } from "./ui.jsx";
 
@@ -26,30 +26,14 @@ function resizeImage(file, maxWidth = 1200) {
 }
 
 export default function PhotoAttachment({ photoIds, onChange }) {
-  const [thumbs, setThumbs] = useState({});
   const [viewPhoto, setViewPhoto] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const fileRef = useRef();
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const loaded = {};
-      for (const id of photoIds) {
-        try {
-          const blob = await getPhoto(id);
-          if (blob && !cancelled) loaded[id] = URL.createObjectURL(blob);
-        } catch {}
-      }
-      if (!cancelled) setThumbs(loaded);
-    })();
-    return () => {
-      cancelled = true;
-      Object.values(thumbs).forEach((url) => URL.revokeObjectURL(url));
-    };
-  }, [photoIds.join(",")]);
 
   const handleAdd = async (e) => {
     const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setUploading(true);
     const newIds = [];
     for (const file of files) {
       try {
@@ -57,12 +41,12 @@ export default function PhotoAttachment({ photoIds, onChange }) {
         const id = crypto.randomUUID();
         await savePhoto(id, blob);
         newIds.push(id);
-        setThumbs((prev) => ({ ...prev, [id]: URL.createObjectURL(blob) }));
       } catch (err) {
         console.error("Photo save failed:", err);
       }
     }
     if (newIds.length > 0) onChange([...photoIds, ...newIds]);
+    setUploading(false);
     e.target.value = "";
   };
 
@@ -70,12 +54,6 @@ export default function PhotoAttachment({ photoIds, onChange }) {
     try {
       await deletePhoto(id);
     } catch {}
-    if (thumbs[id]) URL.revokeObjectURL(thumbs[id]);
-    setThumbs((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
     onChange(photoIds.filter((pid) => pid !== id));
   };
 
@@ -85,9 +63,9 @@ export default function PhotoAttachment({ photoIds, onChange }) {
         {photoIds.map((id) => (
           <div key={id} style={{ position: "relative" }}>
             <img
-              src={thumbs[id] || ""}
+              src={getPhotoUrl(id)}
               alt=""
-              onClick={() => setViewPhoto(thumbs[id])}
+              onClick={() => setViewPhoto(getPhotoUrl(id))}
               style={{
                 width: "64px",
                 height: "64px",
@@ -95,7 +73,6 @@ export default function PhotoAttachment({ photoIds, onChange }) {
                 borderRadius: "4px",
                 border: `1px solid ${colors.cardBorder}`,
                 cursor: "pointer",
-                display: thumbs[id] ? "block" : "none",
               }}
             />
             <button
@@ -125,6 +102,7 @@ export default function PhotoAttachment({ photoIds, onChange }) {
 
         <button
           onClick={() => fileRef.current?.click()}
+          disabled={uploading}
           style={{
             width: "64px",
             height: "64px",
@@ -132,16 +110,19 @@ export default function PhotoAttachment({ photoIds, onChange }) {
             border: `1px dashed ${colors.cardBorder}`,
             borderRadius: "4px",
             color: colors.muted,
-            cursor: "pointer",
+            cursor: uploading ? "wait" : "pointer",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
             gap: "2px",
+            opacity: uploading ? 0.5 : 1,
           }}
         >
           {Icons.camera}
-          <span style={{ fontSize: "8px", letterSpacing: "1px" }}>ADD</span>
+          <span style={{ fontSize: "8px", letterSpacing: "1px" }}>
+            {uploading ? "..." : "ADD"}
+          </span>
         </button>
       </div>
 

@@ -8,7 +8,7 @@ import HistoryView from "./components/HistoryView.jsx";
 import TrendsView from "./components/TrendsView.jsx";
 
 export default function App() {
-  const { entries, addEntry, updateEntry, deleteEntry, clearAll, mergeEntries, replaceAll } =
+  const { entries, loading, addEntry, updateEntry, deleteEntry, clearAll, mergeEntries, replaceAll } =
     useEntries();
   const [current, setCurrent] = useState(DEFAULT_ENTRY());
   const [view, setView] = useState("log");
@@ -144,7 +144,21 @@ export default function App() {
       </div>
 
       <div style={{ padding: "16px 20px 100px", maxWidth: "480px", margin: "0 auto" }}>
-        {view === "log" && (
+        {loading && (
+          <div
+            style={{
+              padding: "60px 20px",
+              textAlign: "center",
+              color: colors.muted,
+              fontSize: "12px",
+              letterSpacing: "2px",
+            }}
+          >
+            CONNECTING TO DATABASE...
+          </div>
+        )}
+
+        {!loading && view === "log" && (
           <LogView
             current={current}
             setCurrent={setCurrent}
@@ -153,7 +167,7 @@ export default function App() {
           />
         )}
 
-        {view === "history" && (
+        {!loading && view === "history" && (
           <HistoryView
             entries={entries}
             onEdit={handleEdit}
@@ -164,7 +178,7 @@ export default function App() {
           />
         )}
 
-        {view === "chart" && <TrendsView entries={entries} />}
+        {!loading && view === "chart" && <TrendsView entries={entries} />}
       </div>
     </div>
   );

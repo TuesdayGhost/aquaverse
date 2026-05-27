@@ -30,10 +30,10 @@ export default function ExportImport({ entries, onMerge, onReplace }) {
         `Found ${imported.length} entries.\n\nOK = Merge (add new entries only)\nCancel = Replace all existing data`
       );
       if (action) {
-        const added = onMerge(imported);
+        const added = await onMerge(imported);
         setStatus(`Merged: ${added} new entries`);
       } else {
-        onReplace(imported);
+        await onReplace(imported);
         setStatus(`Replaced: ${imported.length} entries loaded`);
       }
     } catch (err) {

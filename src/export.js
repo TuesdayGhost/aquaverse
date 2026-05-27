@@ -1,13 +1,4 @@
-import { getPhoto, savePhoto, getAllPhotos } from "./storage.js";
-
-function blobToBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
+import { getPhotoUrl, savePhoto } from "./storage.js";
 
 function base64ToBlob(dataUrl) {
   const [header, data] = dataUrl.split(",");
@@ -18,14 +9,24 @@ function base64ToBlob(dataUrl) {
   return new Blob([arr], { type: mime });
 }
 
+async function urlToBase64(url) {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 export async function exportToJSON(entries, includePhotos = true) {
   const photos = {};
   if (includePhotos) {
     const allPhotoIds = entries.flatMap((e) => e.photoIds || []);
     for (const id of allPhotoIds) {
       try {
-        const blob = await getPhoto(id);
-        if (blob) photos[id] = await blobToBase64(blob);
+        photos[id] = await urlToBase64(getPhotoUrl(id));
       } catch {}
     }
   }

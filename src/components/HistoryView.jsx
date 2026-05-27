@@ -1,54 +1,33 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { TANKS, WEATHER_OPTIONS, EVENT_TYPES } from "../constants.js";
 import { colors, miniBtn } from "../styles/theme.js";
-import { getPhoto } from "../storage.js";
+import { getPhotoUrl } from "../storage.js";
 import ExportImport from "./ExportImport.jsx";
 
 function PhotoThumbs({ photoIds }) {
-  const [urls, setUrls] = useState({});
   const [viewUrl, setViewUrl] = useState(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const loaded = {};
-      for (const id of photoIds) {
-        try {
-          const blob = await getPhoto(id);
-          if (blob && !cancelled) loaded[id] = URL.createObjectURL(blob);
-        } catch {}
-      }
-      if (!cancelled) setUrls(loaded);
-    })();
-    return () => {
-      cancelled = true;
-      Object.values(urls).forEach((u) => URL.revokeObjectURL(u));
-    };
-  }, [photoIds.join(",")]);
 
   if (photoIds.length === 0) return null;
 
   return (
     <>
       <div style={{ marginTop: "8px", display: "flex", gap: "4px", flexWrap: "wrap" }}>
-        {photoIds.map((id) =>
-          urls[id] ? (
-            <img
-              key={id}
-              src={urls[id]}
-              alt=""
-              onClick={() => setViewUrl(urls[id])}
-              style={{
-                width: "48px",
-                height: "48px",
-                objectFit: "cover",
-                borderRadius: "3px",
-                border: `1px solid ${colors.cardBorder}`,
-                cursor: "pointer",
-              }}
-            />
-          ) : null
-        )}
+        {photoIds.map((id) => (
+          <img
+            key={id}
+            src={getPhotoUrl(id)}
+            alt=""
+            onClick={() => setViewUrl(getPhotoUrl(id))}
+            style={{
+              width: "48px",
+              height: "48px",
+              objectFit: "cover",
+              borderRadius: "3px",
+              border: `1px solid ${colors.cardBorder}`,
+              cursor: "pointer",
+            }}
+          />
+        ))}
       </div>
       {viewUrl && (
         <div

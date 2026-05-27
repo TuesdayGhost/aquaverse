@@ -1,91 +1,117 @@
-const ENTRIES_KEY = "aqua-log-entries";
+import { supabase } from "./supabase.js";
 
-export function loadEntries() {
-  try {
-    const raw = localStorage.getItem(ENTRIES_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+// --- Entries ---
+
+export async function loadEntries() {
+  const { data, error } = await supabase
+    .from("entries")
+    .select("*")
+    .order("date", { ascending: true });
+  if (error) throw error;
+  return (data || []).map(fromRow);
 }
 
-export function saveEntries(entries) {
-  try {
-    localStorage.setItem(ENTRIES_KEY, JSON.stringify(entries));
-  } catch (e) {
-    console.error("Failed to save entries:", e);
-  }
+export async function saveEntry(entry) {
+  const { error } = await supabase.from("entries").upsert(toRow(entry));
+  if (error) throw error;
 }
 
-export function clearEntries() {
-  localStorage.removeItem(ENTRIES_KEY);
+export async function deleteEntryById(id) {
+  const { error } = await supabase.from("entries").delete().eq("id", id);
+  if (error) throw error;
 }
 
-const DB_NAME = "aqua-photos";
-const STORE_NAME = "photos";
-const DB_VERSION = 1;
-
-function openPhotoDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+export async function clearAllEntries() {
+  const { error } = await supabase.from("entries").delete().not("id", "is", null);
+  if (error) throw error;
 }
+
+// --- Photos (Supabase Storage) ---
 
 export async function savePhoto(id, blob) {
-  const db = await openPhotoDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).put({ id, blob, createdAt: Date.now() });
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  const { error } = await supabase.storage
+    .from("photos")
+    .upload(`${id}.jpg`, blob, { contentType: "image/jpeg", upsert: true });
+  if (error) throw error;
 }
 
-export async function getPhoto(id) {
-  const db = await openPhotoDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const req = tx.objectStore(STORE_NAME).get(id);
-    req.onsuccess = () => resolve(req.result?.blob ?? null);
-    req.onerror = () => reject(req.error);
-  });
+export function getPhotoUrl(id) {
+  const { data } = supabase.storage.from("photos").getPublicUrl(`${id}.jpg`);
+  return data.publicUrl;
 }
 
 export async function deletePhoto(id) {
-  const db = await openPhotoDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  const { error } = await supabase.storage.from("photos").remove([`${id}.jpg`]);
+  if (error) throw error;
 }
 
 export async function deletePhotos(ids) {
-  const db = await openPhotoDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    ids.forEach((id) => store.delete(id));
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  if (!ids.length) return;
+  const { error } = await supabase.storage
+    .from("photos")
+    .remove(ids.map((id) => `${id}.jpg`));
+  if (error) throw error;
 }
 
-export async function getAllPhotos() {
-  const db = await openPhotoDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const req = tx.objectStore(STORE_NAME).getAll();
-    req.onsuccess = () => resolve(req.result || []);
-    req.onerror = () => reject(req.error);
-  });
+// --- Migration from localStorage (one-time) ---
+
+const LEGACY_KEY = "aqua-log-entries";
+
+export async function migrateLocalData() {
+  const raw = localStorage.getItem(LEGACY_KEY);
+  if (!raw) return 0;
+  try {
+    const entries = JSON.parse(raw);
+    if (!entries.length) {
+      localStorage.removeItem(LEGACY_KEY);
+      return 0;
+    }
+    for (const entry of entries) {
+      await saveEntry(entry);
+    }
+    localStorage.removeItem(LEGACY_KEY);
+    return entries.length;
+  } catch {
+    return 0;
+  }
+}
+
+// --- Row conversion (camelCase <-> snake_case) ---
+
+function toRow(entry) {
+  return {
+    id: entry.id,
+    version: entry.version || 1,
+    date: entry.date,
+    tank_id: entry.tankId,
+    temperatures: entry.temperatures || {},
+    outdoor: entry.outdoor || {},
+    weather: entry.weather || "",
+    shift: entry.shift || "",
+    events: entry.events || [],
+    water_quality: entry.waterQuality || {},
+    photo_ids: entry.photoIds || [],
+    notes: entry.notes || "",
+    source: entry.source || "manual",
+    timestamp: entry.timestamp || new Date().toISOString(),
+  };
+}
+
+function fromRow(row) {
+  return {
+    id: row.id,
+    version: row.version,
+    date: row.date,
+    tankId: row.tank_id,
+    temperatures: row.temperatures,
+    outdoor: row.outdoor,
+    weather: row.weather,
+    shift: row.shift,
+    events: row.events,
+    waterQuality: row.water_quality,
+    photoIds: row.photo_ids,
+    notes: row.notes,
+    source: row.source,
+    timestamp: row.timestamp,
+  };
 }
