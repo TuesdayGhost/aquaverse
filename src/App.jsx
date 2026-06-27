@@ -1,185 +1,226 @@
 import { useState } from "react";
-import { DEFAULT_ENTRY } from "./constants.js";
-import { colors } from "./styles/theme.js";
-import { useEntries } from "./hooks/useEntries.js";
-import { Icons } from "./components/ui.jsx";
-import LogView from "./components/LogView.jsx";
-import HistoryView from "./components/HistoryView.jsx";
-import TrendsView from "./components/TrendsView.jsx";
+import { useItems } from "./useItems.js";
+
+// Today's date as YYYY-MM-DD in local time.
+function todayStr() {
+  const d = new Date();
+  const tz = d.getTimezoneOffset() * 60000;
+  return new Date(d - tz).toISOString().split("T")[0];
+}
+
+// Number of days since startDate, counting the start day as day 1.
+// e.g. started today => 1, started yesterday => 2.
+function dayCount(startDate) {
+  const start = new Date(startDate + "T00:00:00");
+  const today = new Date(todayStr() + "T00:00:00");
+  const diff = Math.round((today - start) / 86400000);
+  return diff + 1;
+}
+
+const c = {
+  bg1: "#0a1628",
+  card: "rgba(13,33,55,0.7)",
+  border: "rgba(100,180,140,0.18)",
+  primary: "#5fd6a0",
+  text: "#e8f5ee",
+  muted: "#7a9a8a",
+  danger: "#ff6b6b",
+};
 
 export default function App() {
-  const { entries, loading, addEntry, updateEntry, deleteEntry, clearAll, mergeEntries, replaceAll } =
-    useEntries();
-  const [current, setCurrent] = useState(DEFAULT_ENTRY());
-  const [view, setView] = useState("log");
-  const [editIndex, setEditIndex] = useState(null);
+  const { items, addItem, removeItem } = useItems();
+  const [name, setName] = useState("");
+  const [startDate, setStartDate] = useState(todayStr());
 
-  const handleSave = () => {
-    if (editIndex !== null) {
-      updateEntry(editIndex, current);
-      setEditIndex(null);
-    } else {
-      addEntry(current);
-    }
-    setCurrent(DEFAULT_ENTRY());
+  const handleAdd = (e) => {
+    e.preventDefault();
+    if (!name.trim() || !startDate) return;
+    addItem(name, startDate);
+    setName("");
+    setStartDate(todayStr());
   };
 
-  const handleEdit = (index) => {
-    setCurrent({ ...entries[index] });
-    setEditIndex(index);
-    setView("log");
-  };
-
-  const handleDelete = (index) => {
-    deleteEntry(index);
-  };
-
-  const handleReset = () => {
-    if (confirm("Clear all logged data? This cannot be undone.")) {
-      clearAll();
-    }
-  };
+  const sorted = [...items].sort((a, b) => a.startDate.localeCompare(b.startDate));
 
   return (
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(165deg, #0a1628 0%, #0d2137 40%, #0a2a1f 100%)",
-        color: colors.text,
-        fontFamily: "'Courier New', 'SF Mono', monospace",
-        padding: "0",
-        position: "relative",
-        overflow: "hidden",
+        background: "linear-gradient(165deg, #0a1628 0%, #0d2137 45%, #0a2a1f 100%)",
+        color: c.text,
+        fontFamily: "'Hiragino Sans', 'Noto Sans JP', system-ui, sans-serif",
+        padding: "0 0 60px",
       }}
     >
-      {/* Ambient glow */}
-      <div
-        style={{
-          position: "fixed",
-          top: "-20%",
-          right: "-10%",
-          width: "50%",
-          height: "50%",
-          background: "radial-gradient(circle, rgba(33,150,100,0.08) 0%, transparent 70%)",
-          pointerEvents: "none",
-        }}
-      />
-
-      {/* Header */}
-      <div
-        style={{
-          padding: "24px 20px 16px",
-          borderBottom: "1px solid rgba(100,180,140,0.15)",
-          background: "rgba(10,22,40,0.8)",
-          backdropFilter: "blur(10px)",
-          position: "sticky",
-          top: 0,
-          zIndex: 100,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <h1
-              style={{
-                fontSize: "18px",
-                fontWeight: 400,
-                color: colors.primary,
-                margin: 0,
-                letterSpacing: "3px",
-                textTransform: "uppercase",
-              }}
-            >
-              🫧 Claude Aqua Opus
-            </h1>
-            <p
-              style={{
-                fontSize: "10px",
-                color: colors.muted,
-                margin: "4px 0 0",
-                letterSpacing: "2px",
-              }}
-            >
-              AQUARIUM LOG SYSTEM — GHOST BOTANICAL ESTATE
-            </p>
-          </div>
-          <div style={{ fontSize: "11px", color: colors.muted, textAlign: "right" }}>
-            <div>{new Date().toLocaleDateString("ja-JP")}</div>
-            <div>{entries.length} entries</div>
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <div style={{ display: "flex", gap: "2px", marginTop: "16px" }}>
-          {[
-            { id: "log", label: "LOG", icon: Icons.edit },
-            { id: "history", label: "HISTORY", icon: Icons.droplet },
-            { id: "chart", label: "TRENDS", icon: Icons.chart },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setView(tab.id)}
-              style={{
-                flex: 1,
-                padding: "8px 0",
-                background: view === tab.id ? colors.activeBg : "transparent",
-                border: "1px solid",
-                borderColor: view === tab.id ? colors.activeBorder : "rgba(100,180,140,0.08)",
-                color: view === tab.id ? colors.primary : colors.muted,
-                fontSize: "10px",
-                letterSpacing: "2px",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "6px",
-                borderRadius: "4px",
-                transition: "all 0.2s",
-              }}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ padding: "16px 20px 100px", maxWidth: "480px", margin: "0 auto" }}>
-        {loading && (
-          <div
+      <div style={{ maxWidth: "480px", margin: "0 auto", padding: "0 18px" }}>
+        {/* Header */}
+        <header style={{ padding: "32px 4px 20px", textAlign: "center" }}>
+          <h1
             style={{
-              padding: "60px 20px",
-              textAlign: "center",
-              color: colors.muted,
-              fontSize: "12px",
+              fontSize: "22px",
+              fontWeight: 600,
+              color: c.primary,
               letterSpacing: "2px",
+              margin: 0,
             }}
           >
-            CONNECTING TO DATABASE...
+            🌱 つづいてるよ
+          </h1>
+          <p style={{ fontSize: "12px", color: c.muted, marginTop: "6px" }}>
+            始めたことを登録して、続いている日数を数えるアプリ
+          </p>
+        </header>
+
+        {/* Add form */}
+        <form
+          onSubmit={handleAdd}
+          style={{
+            background: c.card,
+            border: `1px solid ${c.border}`,
+            borderRadius: "14px",
+            padding: "16px",
+            marginBottom: "24px",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          <label style={labelStyle}>始めたこと</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="例：毎朝のランニング"
+            style={inputStyle}
+          />
+
+          <label style={{ ...labelStyle, marginTop: "12px" }}>始めた日</label>
+          <input
+            type="date"
+            value={startDate}
+            max={todayStr()}
+            onChange={(e) => setStartDate(e.target.value)}
+            style={inputStyle}
+          />
+
+          <button
+            type="submit"
+            disabled={!name.trim()}
+            style={{
+              ...buttonStyle,
+              opacity: name.trim() ? 1 : 0.4,
+              cursor: name.trim() ? "pointer" : "not-allowed",
+            }}
+          >
+            登録する
+          </button>
+        </form>
+
+        {/* List */}
+        {sorted.length === 0 ? (
+          <p style={{ textAlign: "center", color: c.muted, fontSize: "13px", marginTop: "40px" }}>
+            まだ何も登録されていません。
+            <br />
+            上のフォームから始めたことを追加しましょう。
+          </p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {sorted.map((it) => {
+              const days = dayCount(it.startDate);
+              return (
+                <div
+                  key={it.id}
+                  style={{
+                    background: c.card,
+                    border: `1px solid ${c.border}`,
+                    borderRadius: "14px",
+                    padding: "16px 18px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                    backdropFilter: "blur(8px)",
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: 600,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {it.name}
+                    </div>
+                    <div style={{ fontSize: "11px", color: c.muted, marginTop: "4px" }}>
+                      {it.startDate} から
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "14px", flexShrink: 0 }}>
+                    <div style={{ textAlign: "right", lineHeight: 1 }}>
+                      <span style={{ fontSize: "30px", fontWeight: 700, color: c.primary }}>
+                        {days}
+                      </span>
+                      <span style={{ fontSize: "13px", color: c.muted, marginLeft: "3px" }}>
+                        日目
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => removeItem(it.id)}
+                      aria-label="削除"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: c.danger,
+                        fontSize: "18px",
+                        cursor: "pointer",
+                        padding: "4px",
+                        lineHeight: 1,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
-
-        {!loading && view === "log" && (
-          <LogView
-            current={current}
-            setCurrent={setCurrent}
-            onSave={handleSave}
-            editIndex={editIndex}
-          />
-        )}
-
-        {!loading && view === "history" && (
-          <HistoryView
-            entries={entries}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onReset={handleReset}
-            onMerge={mergeEntries}
-            onReplace={replaceAll}
-          />
-        )}
-
-        {!loading && view === "chart" && <TrendsView entries={entries} />}
       </div>
     </div>
   );
 }
+
+const labelStyle = {
+  display: "block",
+  fontSize: "11px",
+  color: c.muted,
+  marginBottom: "6px",
+  letterSpacing: "1px",
+};
+
+const inputStyle = {
+  width: "100%",
+  padding: "10px 12px",
+  background: "rgba(10,22,40,0.6)",
+  border: `1px solid ${c.border}`,
+  borderRadius: "8px",
+  color: c.text,
+  fontSize: "15px",
+  fontFamily: "inherit",
+  outline: "none",
+};
+
+const buttonStyle = {
+  width: "100%",
+  marginTop: "16px",
+  padding: "12px",
+  background: c.primary,
+  border: "none",
+  borderRadius: "8px",
+  color: "#06231a",
+  fontSize: "15px",
+  fontWeight: 700,
+  fontFamily: "inherit",
+};
