@@ -26,15 +26,29 @@ export default function ExportImport({ entries, onMerge, onReplace }) {
     try {
       const text = await file.text();
       const imported = await importFromJSON(text);
-      const action = confirm(
-        `Found ${imported.length} entries.\n\nOK = Merge (add new entries only)\nCancel = Replace all existing data`
-      );
-      if (action) {
+      const action = prompt(
+        `Found ${imported.length} entries.\n\nType MERGE to add only new entries.\nType REPLACE to replace all existing data.\nLeave blank or press Cancel to abort.`
+      )
+        ?.trim()
+        .toLowerCase();
+
+      if (!action) {
+        setStatus("Import cancelled");
+      } else if (action === "merge") {
         const added = await onMerge(imported);
         setStatus(`Merged: ${added} new entries`);
+      } else if (action === "replace") {
+        const confirmed = confirm(
+          `REPLACE ALL existing data with ${imported.length} imported entries?\n\nThis is destructive. Keep your JSON backup.`
+        );
+        if (!confirmed) {
+          setStatus("Import cancelled");
+        } else {
+          await onReplace(imported);
+          setStatus(`Replaced: ${imported.length} entries loaded`);
+        }
       } else {
-        await onReplace(imported);
-        setStatus(`Replaced: ${imported.length} entries loaded`);
+        setStatus("Import cancelled — type MERGE or REPLACE");
       }
     } catch (err) {
       setStatus("Import failed: " + err.message);
