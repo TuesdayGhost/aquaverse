@@ -35,10 +35,22 @@ export const EVENT_TYPES = [
   { id: "molt", label: "Molt Found", emoji: "🦴", color: "#795548" },
 ];
 
+export function getJstDateISO(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 export const DEFAULT_ENTRY = () => ({
   id: crypto.randomUUID(),
   version: 1,
-  date: new Date().toISOString().split("T")[0],
+  date: getJstDateISO(),
   tankId: "republic",
   temperatures: {
     morning: { waterTemp: "", roomTemp: "" },
