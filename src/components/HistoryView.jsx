@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TANKS, WEATHER_OPTIONS, EVENT_TYPES } from "../constants.js";
+import { TANKS, WEATHER_OPTIONS, EVENT_TYPES, WATER_TEST_FIELDS } from "../constants.js";
 import { colors, miniBtn } from "../styles/theme.js";
 import { getPhotoUrl } from "../storage.js";
 import ExportImport from "./ExportImport.jsx";
@@ -55,6 +55,19 @@ function PhotoThumbs({ photoIds }) {
   );
 }
 
+function waterTestsFor(entry) {
+  if (Array.isArray(entry.waterTests)) return entry.waterTests;
+  const raw = entry.waterQuality || {};
+  if (Array.isArray(raw.tests)) return raw.tests;
+  const hasValue = WATER_TEST_FIELDS.some((field) => raw[field.id] !== "" && raw[field.id] != null);
+  if (!hasValue) return [];
+  return [{ id: `${entry.id}-legacy-water-test`, tankId: entry.tankId, ...raw }];
+}
+
+function displayValue(value) {
+  return value === "" || value == null ? null : value;
+}
+
 export default function HistoryView({
   entries,
   onEdit,
@@ -63,6 +76,14 @@ export default function HistoryView({
   onMerge,
   onReplace,
 }) {
+  const sortedEntries = entries
+    .map((entry, index) => ({ entry, index }))
+    .sort((a, b) => {
+      const byDate = (b.entry.date || "").localeCompare(a.entry.date || "");
+      if (byDate !== 0) return byDate;
+      return (b.entry.timestamp || "").localeCompare(a.entry.timestamp || "");
+    });
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div
@@ -116,16 +137,15 @@ export default function HistoryView({
         </div>
       )}
 
-      {[...entries].reverse().map((entry, ri) => {
-        const i = entries.length - 1 - ri;
+      {sortedEntries.map(({ entry, index }) => {
         const tank = TANKS.find((t) => t.id === entry.tankId);
         const temps = entry.temperatures || {};
-        const wq = entry.waterQuality || {};
-        const hasWQ = wq.ammonia || wq.nitrite || wq.gh || wq.kh || wq.tds;
+        const control = temps.control || {};
+        const waterTests = waterTestsFor(entry);
 
         return (
           <div
-            key={entry.id || i}
+            key={entry.id || index}
             style={{
               padding: "12px",
               background: colors.cardBg,
@@ -146,15 +166,15 @@ export default function HistoryView({
                   {entry.date}
                 </span>
                 <span style={{ fontSize: "10px", color: colors.muted }}>
-                  {tank?.emoji} {tank?.name}
+                  {tank?.emoji} {tank?.name || entry.tankId}
                 </span>
               </div>
               <div style={{ display: "flex", gap: "4px" }}>
-                <button onClick={() => onEdit(i)} style={miniBtn}>
+                <button onClick={() => onEdit(index)} style={miniBtn}>
                   Edit
                 </button>
                 <button
-                  onClick={() => onDelete(i)}
+                  onClick={() => onDelete(index)}
                   style={{ ...miniBtn, color: colors.danger, borderColor: colors.dangerBorder }}
                 >
                   Del
@@ -162,7 +182,6 @@ export default function HistoryView({
               </div>
             </div>
 
-            {/* Temperature readings */}
             <div style={{ display: "flex", gap: "16px", fontSize: "11px", flexWrap: "wrap" }}>
               {["morning", "noon", "night"].map((period) => {
                 const t = temps[period];
@@ -178,6 +197,14 @@ export default function HistoryView({
                 );
               })}
             </div>
+
+            {(control.airConditionerSetpoint || control.heaterSetpoint) && (
+              <div style={{ marginTop: "5px", fontSize: "10px", color: colors.muted }}>
+                {control.airConditionerSetpoint && `❄ A/C ${control.airConditionerSetpoint}°C`}
+                {control.airConditionerSetpoint && control.heaterSetpoint && " · "}
+                {control.heaterSetpoint && `🔥 Heater ${control.heaterSetpoint}°C`}
+              </div>
+            )}
 
             <div
               style={{
@@ -199,11 +226,7 @@ export default function HistoryView({
                 </span>
               )}
               {entry.shift && (
-                <span
-                  style={{
-                    color: entry.shift === "Day Off" ? colors.accent : colors.muted,
-                  }}
-                >
+                <span style={{ color: entry.shift === "Day Off" ? colors.accent : colors.muted }}>
                   {entry.shift === "Day Off" ? "🏠" : "🏢"} {entry.shift}
                 </span>
               )}
@@ -232,15 +255,28 @@ export default function HistoryView({
               </div>
             )}
 
-            {hasWQ && (
-              <div style={{ marginTop: "6px", fontSize: "10px", color: colors.muted }}>
-                🧪 NH₃: {wq.ammonia || "—"} ppm · NO₂: {wq.nitrite || "—"} mg/l
-                {(wq.gh || wq.kh || wq.tds) && (
-                  <>
-                    {" "}
-                    · GH: {wq.gh || "—"} · KH: {wq.kh || "—"} · TDS: {wq.tds || "—"} ppm
-                  </>
-                )}
+            {waterTests.length > 0 && (
+              <div style={{ marginTop: "7px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                {waterTests.map((test, testIndex) => {
+                  const testTank = TANKS.find((t) => t.id === test.tankId);
+                  const values = WATER_TEST_FIELDS
+                    .map((field) => {
+                      const value = displayValue(test[field.id]);
+                      return value == null
+                        ? null
+                        : `${field.label} ${value}${field.unit ? ` ${field.unit}` : ""}`;
+                    })
+                    .filter(Boolean);
+
+                  return (
+                    <div
+                      key={test.id || `${entry.id}-test-${testIndex}`}
+                      style={{ fontSize: "10px", color: colors.muted, lineHeight: 1.5 }}
+                    >
+                      🧪 {testTank?.name || test.tankId || "Unknown tank"}: {values.join(" · ") || "no values"}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
