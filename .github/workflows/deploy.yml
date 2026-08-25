@@ -1,5 +1,6 @@
 name: Deploy to GitHub Pages
 
+# redeploy trigger 2026-08-25
 on:
   push:
     branches: [main, claude/stoic-bohr-3c2hh]
