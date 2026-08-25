@@ -1,5 +1,62 @@
 import { supabase } from "./supabase.js";
 
+const WATER_FIELDS = ["ammonia", "nitrite", "nitrate", "ph", "gh", "kh", "tds"];
+
+function legacyWaterTest(entry) {
+  const raw = entry?.waterQuality || {};
+  if (Array.isArray(raw.tests)) return null;
+  const hasValue = WATER_FIELDS.some((field) => raw[field] !== "" && raw[field] != null);
+  if (!hasValue) return null;
+
+  return {
+    id: `${entry.id || "legacy"}-water-test`,
+    tankId: entry.tankId || "republic",
+    ammonia: raw.ammonia ?? "",
+    nitrite: raw.nitrite ?? "",
+    nitrate: raw.nitrate ?? "",
+    ph: raw.ph ?? "",
+    gh: raw.gh ?? "",
+    kh: raw.kh ?? "",
+    tds: raw.tds ?? "",
+  };
+}
+
+function normalizeWaterTests(entry) {
+  if (Array.isArray(entry?.waterTests)) {
+    return entry.waterTests.map((test, index) => ({
+      id: test.id || `${entry.id || "entry"}-water-test-${index}`,
+      tankId: test.tankId || entry.tankId || "republic",
+      ammonia: test.ammonia ?? "",
+      nitrite: test.nitrite ?? "",
+      nitrate: test.nitrate ?? "",
+      ph: test.ph ?? "",
+      gh: test.gh ?? "",
+      kh: test.kh ?? "",
+      tds: test.tds ?? "",
+    }));
+  }
+
+  if (Array.isArray(entry?.waterQuality?.tests)) {
+    return normalizeWaterTests({ ...entry, waterTests: entry.waterQuality.tests });
+  }
+
+  const legacy = legacyWaterTest(entry);
+  return legacy ? [legacy] : [];
+}
+
+function normalizeTemperatures(temperatures = {}) {
+  return {
+    morning: temperatures.morning || { waterTemp: "", roomTemp: "" },
+    noon: temperatures.noon || { waterTemp: "", roomTemp: "" },
+    night: temperatures.night || { waterTemp: "", roomTemp: "" },
+    control: {
+      airConditionerSetpoint: temperatures.control?.airConditionerSetpoint ?? "",
+      heaterSetpoint: temperatures.control?.heaterSetpoint ?? "",
+      source: temperatures.control?.source || "manual",
+    },
+  };
+}
+
 // --- Entries ---
 
 export async function loadEntries() {
@@ -81,15 +138,15 @@ export async function migrateLocalData() {
 function toRow(entry) {
   return {
     id: entry.id,
-    version: entry.version || 1,
+    version: Math.max(entry.version || 1, 2),
     date: entry.date,
     tank_id: entry.tankId,
-    temperatures: entry.temperatures || {},
+    temperatures: normalizeTemperatures(entry.temperatures),
     outdoor: entry.outdoor || {},
     weather: entry.weather || "",
     shift: entry.shift || "",
     events: entry.events || [],
-    water_quality: entry.waterQuality || {},
+    water_quality: { tests: normalizeWaterTests(entry) },
     photo_ids: entry.photoIds || [],
     notes: entry.notes || "",
     source: entry.source || "manual",
@@ -98,20 +155,26 @@ function toRow(entry) {
 }
 
 function fromRow(row) {
-  return {
+  const base = {
     id: row.id,
     version: row.version,
     date: row.date,
     tankId: row.tank_id,
-    temperatures: row.temperatures,
-    outdoor: row.outdoor,
+    temperatures: normalizeTemperatures(row.temperatures),
+    outdoor: row.outdoor || {},
     weather: row.weather,
     shift: row.shift,
-    events: row.events,
-    waterQuality: row.water_quality,
-    photoIds: row.photo_ids,
+    events: row.events || [],
+    waterQuality: row.water_quality || {},
+    photoIds: row.photo_ids || [],
     notes: row.notes,
     source: row.source,
     timestamp: row.timestamp,
+  };
+
+  return {
+    ...base,
+    version: Math.max(base.version || 1, 2),
+    waterTests: normalizeWaterTests(base),
   };
 }
