@@ -100,25 +100,50 @@ export function Input(props) {
   return <input {...props} style={{ ...inputStyle, ...(props.style || {}) }} />;
 }
 
-export function ChartCard({ title, data, color, unit }) {
-  const valid = data.filter((v) => v != null);
-  if (valid.length < 2) return null;
+function shortDate(date) {
+  if (!date) return "";
+  const parts = date.split("-");
+  return parts.length === 3 ? `${parts[1]}/${parts[2]}` : date;
+}
+
+export function ChartCard({ title, data, dates = [], color, unit }) {
+  const validEntries = data
+    .map((value, index) => ({ value, index, date: dates[index] }))
+    .filter(({ value }) => value != null && Number.isFinite(value));
+
+  if (validEntries.length < 2) return null;
+
+  const valid = validEntries.map(({ value }) => value);
   const min = Math.min(...valid);
   const max = Math.max(...valid);
   const avg = (valid.reduce((a, b) => a + b, 0) / valid.length).toFixed(1);
-  const latest = valid[valid.length - 1];
+  const latest = validEntries[validEntries.length - 1].value;
   const h = 60;
   const w = 280;
   const range = max - min || 1;
 
-  const points = [];
-  data.forEach((v, i) => {
-    if (v != null) {
-      const x = data.length > 1 ? (i / (data.length - 1)) * w : w / 2;
-      const y = h - ((v - (min - 0.5)) / (range + 1)) * h;
-      points.push(`${x},${y}`);
+  const dateValues = validEntries.map(({ date }) =>
+    date ? Date.parse(`${date}T00:00:00Z`) : Number.NaN
+  );
+  const hasDateScale = dateValues.every(Number.isFinite) && Math.max(...dateValues) !== Math.min(...dateValues);
+  const minDate = hasDateScale ? Math.min(...dateValues) : null;
+  const maxDate = hasDateScale ? Math.max(...dateValues) : null;
+
+  const points = validEntries.map(({ value, index, date }, validIndex) => {
+    let x;
+    if (hasDateScale && date) {
+      const timestamp = Date.parse(`${date}T00:00:00Z`);
+      x = ((timestamp - minDate) / (maxDate - minDate)) * w;
+    } else {
+      x = validEntries.length > 1 ? (validIndex / (validEntries.length - 1)) * w : w / 2;
     }
+    const y = h - ((value - (min - 0.5)) / (range + 1)) * h;
+    return { x, y, index, date };
   });
+
+  const polyline = points.map(({ x, y }) => `${x},${y}`).join(" ");
+  const firstDate = validEntries[0].date;
+  const lastDate = validEntries[validEntries.length - 1].date;
 
   return (
     <div
@@ -152,18 +177,32 @@ export function ChartCard({ title, data, color, unit }) {
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          points={points.join(" ")}
+          points={polyline}
           opacity="0.8"
         />
         {points.length > 0 && (
           <circle
-            cx={points[points.length - 1].split(",")[0]}
-            cy={points[points.length - 1].split(",")[1]}
+            cx={points[points.length - 1].x}
+            cy={points[points.length - 1].y}
             r="3"
             fill={color}
           />
         )}
       </svg>
+      {firstDate && lastDate && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: "9px",
+            color: colors.muted,
+            marginTop: "4px",
+          }}
+        >
+          <span>{shortDate(firstDate)}</span>
+          <span>{shortDate(lastDate)}</span>
+        </div>
+      )}
       <div
         style={{
           display: "flex",
