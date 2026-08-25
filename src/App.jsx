@@ -8,18 +8,27 @@ import HistoryView from "./components/HistoryView.jsx";
 import TrendsView from "./components/TrendsView.jsx";
 
 export default function App() {
-  const { entries, loading, addEntry, updateEntry, deleteEntry, clearAll, mergeEntries, replaceAll } =
-    useEntries();
+  const {
+    entries,
+    loading,
+    error,
+    addEntry,
+    updateEntry,
+    deleteEntry,
+    clearAll,
+    mergeEntries,
+    replaceAll,
+  } = useEntries();
   const [current, setCurrent] = useState(DEFAULT_ENTRY());
   const [view, setView] = useState("log");
   const [editIndex, setEditIndex] = useState(null);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (editIndex !== null) {
-      updateEntry(editIndex, current);
+      await updateEntry(editIndex, current);
       setEditIndex(null);
     } else {
-      addEntry(current);
+      await addEntry(current);
     }
     setCurrent(DEFAULT_ENTRY());
   };
@@ -31,12 +40,12 @@ export default function App() {
   };
 
   const handleDelete = (index) => {
-    deleteEntry(index);
+    deleteEntry(index).catch(() => {});
   };
 
   const handleReset = () => {
     if (confirm("Clear all logged data? This cannot be undone.")) {
-      clearAll();
+      clearAll().catch(() => {});
     }
   };
 
@@ -144,6 +153,24 @@ export default function App() {
       </div>
 
       <div style={{ padding: "16px 20px 100px", maxWidth: "480px", margin: "0 auto" }}>
+        {error && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: "12px",
+              padding: "10px 12px",
+              background: colors.dangerBg,
+              border: `1px solid ${colors.dangerBorder}`,
+              borderRadius: "6px",
+              color: colors.danger,
+              fontSize: "11px",
+              lineHeight: 1.5,
+            }}
+          >
+            ⚠ DATABASE — {error}
+          </div>
+        )}
+
         {loading && (
           <div
             style={{
