@@ -1,0 +1,21 @@
+name: Verify build
+
+on:
+  push:
+    branches: [fix/stability-and-jst]
+  pull_request:
+    branches: [claude/stoic-bohr-3c2hh]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run build
