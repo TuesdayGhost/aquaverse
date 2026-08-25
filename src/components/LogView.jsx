@@ -4,33 +4,82 @@ import { colors, inputStyle, selectStyle } from "../styles/theme.js";
 import { Section, Label, Input, Icons } from "./ui.jsx";
 import PhotoAttachment from "./PhotoAttachment.jsx";
 
+const SENDAI = { latitude: 38.2682, longitude: 140.8694 };
+
+function getWeatherLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve({ ...SENDAI, source: "sendai-fallback" });
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) =>
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          source: "current-location",
+        }),
+      () => resolve({ ...SENDAI, source: "sendai-fallback" }),
+      {
+        enableHighAccuracy: false,
+        timeout: 5000,
+        maximumAge: 30 * 60 * 1000,
+      }
+    );
+  });
+}
+
 async function fetchWeather() {
   try {
-    const res = await fetch(
-      "https://api.open-meteo.com/v1/forecast?latitude=35.68&longitude=139.77&current=temperature_2m,weather_code&daily=temperature_2m_max&timezone=Asia%2FTokyo&forecast_days=1"
-    );
+    const location = await getWeatherLocation();
+    const url = new URL("https://api.open-meteo.com/v1/forecast");
+    url.searchParams.set("latitude", String(location.latitude));
+    url.searchParams.set("longitude", String(location.longitude));
+    url.searchParams.set("current", "temperature_2m,weather_code");
+    url.searchParams.set("daily", "temperature_2m_max");
+    url.searchParams.set("timezone", "auto");
+    url.searchParams.set("forecast_days", "1");
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Weather API returned ${res.status}`);
+
     const data = await res.json();
-    const code = data.current?.weather_code;
+    const currentTemp = data.current?.temperature_2m;
+    const highTemp = data.daily?.temperature_2m_max?.[0];
+    if (!Number.isFinite(currentTemp) || !Number.isFinite(highTemp)) {
+      throw new Error("Weather API returned incomplete data");
+    }
+
+    const code = data.current?.weather_code ?? 0;
     let weather = "Sunny";
-    if (code >= 61) weather = "Rain";
+    if (code >= 95) weather = "Storm";
+    else if (code >= 51 && code <= 82) weather = "Rain";
     else if (code >= 45) weather = "Cloudy";
-    else if (code >= 2) weather = "Cloudy";
+    else if (code >= 1) weather = "Cloudy";
+
     return {
-      current: Math.round(data.current?.temperature_2m || 0),
-      high: Math.round(data.daily?.temperature_2m_max?.[0] || 0),
+      current: Math.round(currentTemp),
+      high: Math.round(highTemp),
       weather,
+      locationSource: location.source,
     };
-  } catch {
+  } catch (err) {
+    console.error("Weather fetch failed:", err);
     return null;
   }
 }
 
 export default function LogView({ current, setCurrent, onSave, editIndex }) {
   const [weatherLoading, setWeatherLoading] = useState(false);
+  const [weatherStatus, setWeatherStatus] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
 
   const handleFetchWeather = async () => {
     setWeatherLoading(true);
+    setWeatherStatus(null);
     const data = await fetchWeather();
     if (data) {
       setCurrent((c) => ({
@@ -38,10 +87,17 @@ export default function LogView({ current, setCurrent, onSave, editIndex }) {
         outdoor: {
           tempMorning: String(data.current),
           tempHigh: String(data.high),
-          source: "api",
+          source: data.locationSource,
         },
         weather: data.weather,
       }));
+      setWeatherStatus(
+        data.locationSource === "current-location"
+          ? "📍 Current location"
+          : "📍 Sendai fallback"
+      );
+    } else {
+      setWeatherStatus("Weather fetch failed");
     }
     setWeatherLoading(false);
   };
@@ -72,10 +128,18 @@ export default function LogView({ current, setCurrent, onSave, editIndex }) {
     }));
   };
 
-  const handleSave = () => {
-    onSave();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveFailed(false);
+    try {
+      await onSave();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setSaveFailed(true);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const tank = TANKS.find((t) => t.id === current.tankId);
@@ -195,15 +259,28 @@ export default function LogView({ current, setCurrent, onSave, editIndex }) {
                 color: "#64b5f6",
                 fontSize: "10px",
                 borderRadius: "4px",
-                cursor: "pointer",
+                cursor: weatherLoading ? "wait" : "pointer",
                 whiteSpace: "nowrap",
                 letterSpacing: "1px",
+                opacity: weatherLoading ? 0.6 : 1,
               }}
             >
               {weatherLoading ? "..." : "AUTO"}
             </button>
           </div>
         </div>
+
+        {weatherStatus && (
+          <div
+            style={{
+              fontSize: "9px",
+              color: weatherStatus.includes("failed") ? colors.danger : colors.muted,
+              marginBottom: "8px",
+            }}
+          >
+            {weatherStatus}
+          </div>
+        )}
 
         <Label>Weather</Label>
         <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
@@ -387,25 +464,41 @@ export default function LogView({ current, setCurrent, onSave, editIndex }) {
       {/* Save Button */}
       <button
         onClick={handleSave}
+        disabled={saving}
         style={{
           padding: "14px",
-          background: saved
-            ? "rgba(76,175,80,0.3)"
-            : "linear-gradient(135deg, rgba(100,180,140,0.25), rgba(33,150,100,0.2))",
+          background: saveFailed
+            ? colors.dangerBg
+            : saved
+              ? "rgba(76,175,80,0.3)"
+              : "linear-gradient(135deg, rgba(100,180,140,0.25), rgba(33,150,100,0.2))",
           border: "1px solid",
-          borderColor: saved ? "rgba(76,175,80,0.5)" : colors.activeBorder,
+          borderColor: saveFailed
+            ? colors.dangerBorder
+            : saved
+              ? "rgba(76,175,80,0.5)"
+              : colors.activeBorder,
           borderRadius: "6px",
-          color: saved ? "#81c784" : colors.primary,
+          color: saveFailed ? colors.danger : saved ? "#81c784" : colors.primary,
           fontSize: "13px",
           fontWeight: 600,
           letterSpacing: "3px",
-          cursor: "pointer",
+          cursor: saving ? "wait" : "pointer",
           textTransform: "uppercase",
           transition: "all 0.3s",
           fontFamily: "inherit",
+          opacity: saving ? 0.7 : 1,
         }}
       >
-        {saved ? "✓ LOGGED" : editIndex !== null ? "UPDATE ENTRY" : "LOG ENTRY"}
+        {saving
+          ? "SAVING..."
+          : saveFailed
+            ? "SAVE FAILED — RETRY"
+            : saved
+              ? "✓ LOGGED"
+              : editIndex !== null
+                ? "UPDATE ENTRY"
+                : "LOG ENTRY"}
       </button>
     </div>
   );
