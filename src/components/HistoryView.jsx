@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TANKS, WEATHER_OPTIONS, EVENT_TYPES, WATER_TEST_FIELDS } from "../constants.js";
+import { TANKS, WEATHER_OPTIONS, EVENT_TYPES, WATER_TEST_DISPLAY_FIELDS } from "../constants.js";
 import { colors, miniBtn } from "../styles/theme.js";
 import { getPhotoUrl } from "../storage.js";
 import ExportImport from "./ExportImport.jsx";
@@ -59,7 +59,7 @@ function waterTestsFor(entry) {
   if (Array.isArray(entry.waterTests)) return entry.waterTests;
   const raw = entry.waterQuality || {};
   if (Array.isArray(raw.tests)) return raw.tests;
-  const hasValue = WATER_TEST_FIELDS.some((field) => raw[field.id] !== "" && raw[field.id] != null);
+  const hasValue = WATER_TEST_DISPLAY_FIELDS.some((field) => raw[field.id] !== "" && raw[field.id] != null);
   if (!hasValue) return [];
   return [{ id: `${entry.id}-legacy-water-test`, tankId: entry.tankId, ...raw }];
 }
@@ -259,7 +259,7 @@ export default function HistoryView({
               <div style={{ marginTop: "7px", display: "flex", flexDirection: "column", gap: "4px" }}>
                 {waterTests.map((test, testIndex) => {
                   const testTank = TANKS.find((t) => t.id === test.tankId);
-                  const values = WATER_TEST_FIELDS
+                  const values = WATER_TEST_DISPLAY_FIELDS
                     .map((field) => {
                       const value = displayValue(test[field.id]);
                       return value == null
@@ -306,3 +306,4 @@ export default function HistoryView({
     </div>
   );
 }
+

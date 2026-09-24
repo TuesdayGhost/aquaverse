@@ -56,7 +56,13 @@ export const WATER_TEST_FIELDS = [
   { id: "ph", label: "pH", unit: "", step: "0.01" },
   { id: "gh", label: "GH", unit: "°dH", step: "1" },
   { id: "kh", label: "KH", unit: "°dH", step: "1" },
-  { id: "tds", label: "TDS", unit: "ppm", step: "1" },
+  { id: "ec", label: "EC", unit: "µS/cm", step: "1" },
+];
+
+// Historical TDS measurements remain in ppm; never relabel or convert them to EC.
+export const WATER_TEST_DISPLAY_FIELDS = [
+  ...WATER_TEST_FIELDS,
+  { id: "tds", label: "TDS (legacy)", unit: "ppm", step: "1" },
 ];
 
 export function getJstDateISO(date = new Date()) {
@@ -81,7 +87,7 @@ export function createWaterTest(tankId = "republic") {
     ph: "",
     gh: "",
     kh: "",
-    tds: "",
+    ec: "",
   };
 }
 
@@ -109,3 +115,4 @@ export const DEFAULT_ENTRY = () => ({
   notes: "",
   source: "manual",
 });
+
