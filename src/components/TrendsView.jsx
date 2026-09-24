@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TANKS, EVENT_TYPES, WATER_TEST_FIELDS } from "../constants.js";
+import { TANKS, EVENT_TYPES, WATER_TEST_DISPLAY_FIELDS } from "../constants.js";
 import { colors } from "../styles/theme.js";
 import { ChartCard, StatBox } from "./ui.jsx";
 
@@ -13,7 +13,7 @@ function waterTestsFor(entry) {
   if (Array.isArray(entry.waterTests)) return entry.waterTests;
   const raw = entry.waterQuality || {};
   if (Array.isArray(raw.tests)) return raw.tests;
-  const hasValue = WATER_TEST_FIELDS.some((field) => raw[field.id] !== "" && raw[field.id] != null);
+  const hasValue = WATER_TEST_DISPLAY_FIELDS.some((field) => raw[field.id] !== "" && raw[field.id] != null);
   return hasValue ? [{ id: `${entry.id}-legacy-water-test`, tankId: entry.tankId, ...raw }] : [];
 }
 
@@ -59,6 +59,7 @@ export default function TrendsView({ entries }) {
   const phVals = testExtract("ph");
   const ghVals = testExtract("gh");
   const khVals = testExtract("kh");
+  const ecVals = testExtract("ec");
   const tdsVals = testExtract("tds");
 
   const eventEntries = entries.filter((e) => e.tankId === tankFilter);
@@ -224,8 +225,12 @@ export default function TrendsView({ entries }) {
             <ChartCard title="KH" data={khVals} dates={testDates} color="#8BC34A" unit="°dH" />
           )}
 
+          {ecVals.some((v) => v != null) && (
+            <ChartCard title="EC" data={ecVals} dates={testDates} color="#FFC107" unit=" µS/cm" />
+          )}
+
           {tdsVals.some((v) => v != null) && (
-            <ChartCard title="TDS" data={tdsVals} dates={testDates} color="#FFC107" unit=" ppm" />
+            <ChartCard title="TDS (legacy)" data={tdsVals} dates={testDates} color="#FFC107" unit=" ppm" />
           )}
 
           {eventEntries.length > 0 && (
@@ -343,3 +348,4 @@ export default function TrendsView({ entries }) {
     </div>
   );
 }
+

@@ -1,6 +1,6 @@
 import { supabase } from "./supabase.js";
 
-const WATER_FIELDS = ["ammonia", "nitrite", "nitrate", "ph", "gh", "kh", "tds"];
+const WATER_FIELDS = ["ammonia", "nitrite", "nitrate", "ph", "gh", "kh", "ec", "tds"];
 
 function legacyWaterTest(entry) {
   const raw = entry?.waterQuality || {};
@@ -17,6 +17,7 @@ function legacyWaterTest(entry) {
     ph: raw.ph ?? "",
     gh: raw.gh ?? "",
     kh: raw.kh ?? "",
+    ec: raw.ec ?? "",
     tds: raw.tds ?? "",
   };
 }
@@ -32,6 +33,7 @@ function normalizeWaterTests(entry) {
       ph: test.ph ?? "",
       gh: test.gh ?? "",
       kh: test.kh ?? "",
+      ec: test.ec ?? "",
       tds: test.tds ?? "",
     }));
   }
@@ -178,3 +180,4 @@ function fromRow(row) {
     waterTests: normalizeWaterTests(base),
   };
 }
+

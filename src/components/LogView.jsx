@@ -5,6 +5,7 @@ import {
   WEATHER_OPTIONS,
   EVENT_TYPES,
   WATER_TEST_FIELDS,
+  WATER_TEST_DISPLAY_FIELDS,
   createWaterTest,
   getJstDateISO,
 } from "../constants.js";
@@ -111,13 +112,14 @@ async function fetchWeather(date) {
 function legacyWaterTests(entry) {
   if (Array.isArray(entry.waterTests)) return entry.waterTests;
   const raw = entry.waterQuality || {};
-  const hasValue = WATER_TEST_FIELDS.some((field) => raw[field.id] !== "" && raw[field.id] != null);
+  if (Array.isArray(raw.tests)) return raw.tests;
+  const hasValue = WATER_TEST_DISPLAY_FIELDS.some((field) => raw[field.id] !== "" && raw[field.id] != null);
   if (!hasValue) return [];
   return [
     {
       id: `${entry.id}-legacy-water-test`,
       tankId: entry.tankId,
-      ...Object.fromEntries(WATER_TEST_FIELDS.map((field) => [field.id, raw[field.id] ?? ""])),
+      ...Object.fromEntries(WATER_TEST_DISPLAY_FIELDS.map((field) => [field.id, raw[field.id] ?? ""])),
     },
   ];
 }
@@ -558,6 +560,11 @@ export default function LogView({ current, setCurrent, onSave, editIndex }) {
                     </div>
                   ))}
                 </div>
+                {test.tds !== "" && test.tds != null && (
+                  <div style={{ marginTop: "8px", fontSize: "10px", color: colors.muted }}>
+                    TDS (legacy): {test.tds} ppm — retained separately from EC.
+                  </div>
+                )}
               </div>
             ))}
 
@@ -643,3 +650,4 @@ export default function LogView({ current, setCurrent, onSave, editIndex }) {
     </div>
   );
 }
+
